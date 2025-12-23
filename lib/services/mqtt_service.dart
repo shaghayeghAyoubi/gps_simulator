@@ -73,30 +73,30 @@ class MqttService extends GetxController {
     update();
   }
 
-  Map<String, dynamic> getConnectionInfo() {
-    return {
-      'broker': broker,
-      'port': port,
-      'topic': topic,
-      'connected': isConnected,
-      'messagesSent': messagesSent,
-      'totalBytesSent': totalBytesSent,
-      'lastError': lastError,
-      'lastMessageTime': lastMessageTime?.toIso8601String(),
-    };
-  }
+  // Map<String, dynamic> getConnectionInfo() {
+  //   return {
+  //     'broker': broker,
+  //     'port': port,
+  //     'topic': topic,
+  //     'connected': isConnected,
+  //     'messagesSent': messagesSent,
+  //     'totalBytesSent': totalBytesSent,
+  //     'lastError': lastError,
+  //     'lastMessageTime': lastMessageTime?.toIso8601String(),
+  //   };
+  // }
 
-  String getStatusColor() {
-    if (isConnected) return 'green';
-    if (_lastError.value != null) return 'red';
-    return 'orange';
-  }
+  // String getStatusColor() {
+  //   if (isConnected) return 'green';
+  //   if (_lastError.value != null) return 'red';
+  //   return 'orange';
+  // }
 
-  String getStatusIcon() {
-    if (isConnected) return '✅';
-    if (_lastError.value != null) return '❌';
-    return '⏳';
-  }
+  // String getStatusIcon() {
+  //   if (isConnected) return '✅';
+  //   if (_lastError.value != null) return '❌';
+  //   return '⏳';
+  // }
 
   Widget buildStatusWidget() {
     return Container(
