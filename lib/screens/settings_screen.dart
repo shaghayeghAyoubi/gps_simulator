@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../services/location_service.dart';
 import '../services/mqtt_service.dart';
+import '../shared_preferences.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -40,65 +41,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _updateMqttSettings() async {
-    // اعتبارسنجی
     final broker = _brokerController.text.trim();
     final port = int.tryParse(_portController.text.trim());
     final topic = _topicController.text.trim();
 
-    if (broker.isEmpty) {
-      Get.snackbar(
-        'خطا',
-        'آدرس بروکر نمی‌تواند خالی باشد.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+    if (broker.isEmpty || port == null || topic.isEmpty) {
+      Get.snackbar('خطا', 'لطفاً همه فیلدها را صحیح پر کنید',
+          backgroundColor: Colors.red, colorText: Colors.white);
       return;
     }
 
-    if (port == null || port <= 0 || port > 65535) {
-      Get.snackbar(
-        'خطا',
-        'پورت معتبر نیست.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
+    // ذخیره در SharedPreferences
+    await MqttSettingsStorage.saveSettings(
+      broker: broker,
+      port: port,
+      topic: topic,
+    );
 
-    if (topic.isEmpty) {
-      Get.snackbar(
-        'خطا',
-        'توپیک نمی‌تواند خالی باشد.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
+    // ارسال به foreground task برای reconnect
+    FlutterForegroundTask.sendDataToTask({
+      'action': 'update_mqtt_settings',
+      'broker': broker,
+      'port': port,
+      'topic': topic,
+    });
 
-    // ارسال تنظیمات جدید به foreground task
-    try {
-       FlutterForegroundTask.sendDataToTask({
-        'action': 'update_mqtt_settings',
-        'broker': broker,
-        'port': port,
-        'topic': topic,
-      });
-
-      Get.snackbar(
-        'موفقیت',
-        'تنظیمات MQTT ارسال شدند.',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-      );
-    } catch (e) {
-      Get.snackbar(
-        'خطا',
-        'خطا در ارسال تنظیمات: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
+    Get.snackbar('موفقیت', 'تنظیمات MQTT ذخیره و ارسال شد',
+        backgroundColor: Colors.green, colorText: Colors.white);
   }
 
   @override

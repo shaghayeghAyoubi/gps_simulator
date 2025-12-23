@@ -39,32 +39,7 @@ class MqttService extends GetxController {
     _connectionStatus.value = 'در انتظار شروع سرویس...';
   }
 
-  // برای به روزرسانی وضعیت از foreground task
-  void updateStatus(bool connected, {int? messageCount, String? error}) {
-    _isConnected.value = connected;
-    _connectionStatus.value = connected ? 'متصل' : 'قطع';
-    _lastError.value = error;
 
-    if (messageCount != null) {
-      _messagesSent.value = messageCount;
-    }
-
-    if (connected) {
-      _lastMessageTime.value = DateTime.now();
-    }
-
-    update();
-  }
-
-  void incrementMessageCount() {
-    _messagesSent.value++;
-    update();
-  }
-
-  void addBytesSent(int bytes) {
-    _totalBytesSent.value += bytes;
-    update();
-  }
 
   void resetStats() {
     _messagesSent.value = 0;
@@ -73,30 +48,7 @@ class MqttService extends GetxController {
     update();
   }
 
-  // Map<String, dynamic> getConnectionInfo() {
-  //   return {
-  //     'broker': broker,
-  //     'port': port,
-  //     'topic': topic,
-  //     'connected': isConnected,
-  //     'messagesSent': messagesSent,
-  //     'totalBytesSent': totalBytesSent,
-  //     'lastError': lastError,
-  //     'lastMessageTime': lastMessageTime?.toIso8601String(),
-  //   };
-  // }
 
-  // String getStatusColor() {
-  //   if (isConnected) return 'green';
-  //   if (_lastError.value != null) return 'red';
-  //   return 'orange';
-  // }
-
-  // String getStatusIcon() {
-  //   if (isConnected) return '✅';
-  //   if (_lastError.value != null) return '❌';
-  //   return '⏳';
-  // }
 
   Widget buildStatusWidget() {
     return Container(
