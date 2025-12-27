@@ -3,9 +3,10 @@ import 'package:get/get.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../local/app_storage.dart';
 import '../services/location_service.dart';
 import '../services/mqtt_service.dart';
-import '../shared_preferences.dart';
+
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -18,19 +19,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final LocationService locationService = Get.find<LocationService>();
   final MqttService mqttService = Get.find<MqttService>();
 
-  // کنترلرهای فرم
   final _brokerController = TextEditingController();
   final _portController = TextEditingController();
   final _topicController = TextEditingController();
 
+
+
   @override
   void initState() {
     super.initState();
-    // مقداردهی اولیه کنترلرها با مقادیر فعلی
-    _brokerController.text = mqttService.broker;
-    _portController.text = mqttService.port.toString();
-    _topicController.text = mqttService.topic;
+    _loadSavedSettings();
   }
+
+  Future<void> _loadSavedSettings() async {
+    final settings = await AppStorage.getAllSettings();
+
+    _brokerController.text = settings['ip'] ?? '';
+    _portController.text = settings['port'] ?? '';
+    _topicController.text = settings['topic'] ?? '';
+  }
+
+  Future<void> _saveSettings() async {
+    final ip = _brokerController.text.trim();
+    final port = _portController.text.trim();
+    final topic = _topicController.text.trim();
+
+    if (ip.isEmpty || port.isEmpty || topic.isEmpty) {
+      Get.snackbar(
+        'خطا',
+        'لطفاً همه فیلدها را پر کنید',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    await AppStorage.saveIp(ip);
+    await AppStorage.savePort(port);
+    await AppStorage.saveTopic(topic);
+
+    FlutterForegroundTask.sendDataToTask({
+      'action': 'update_mqtt_settings',
+      'broker': ip,
+      'port': int.parse(port),
+      'topic': topic,
+    });
+
+    Get.snackbar(
+      'موفق',
+      'تنظیمات ذخیره شد و اتصال مجدد در حال انجام است',
+      backgroundColor: Colors.green,
+      colorText: Colors.white,
+    );
+  }
+
+  Future<void> _requestCurrentSettings() async {
+    FlutterForegroundTask.sendDataToTask({
+      'action': 'get_current_settings',
+    });
+
+    Get.snackbar(
+      'درخواست ارسال شد',
+      'دریافت تنظیمات فعلی از سرویس',
+      backgroundColor: Colors.blue,
+      colorText: Colors.white,
+    );
+  }
+
+
 
   @override
   void dispose() {
@@ -40,35 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
-  Future<void> _updateMqttSettings() async {
-    final broker = _brokerController.text.trim();
-    final port = int.tryParse(_portController.text.trim());
-    final topic = _topicController.text.trim();
 
-    if (broker.isEmpty || port == null || topic.isEmpty) {
-      Get.snackbar('خطا', 'لطفاً همه فیلدها را صحیح پر کنید',
-          backgroundColor: Colors.red, colorText: Colors.white);
-      return;
-    }
-
-    // ذخیره در SharedPreferences
-    await MqttSettingsStorage.saveSettings(
-      broker: broker,
-      port: port,
-      topic: topic,
-    );
-
-    // ارسال به foreground task برای reconnect
-    FlutterForegroundTask.sendDataToTask({
-      'action': 'update_mqtt_settings',
-      'broker': broker,
-      'port': port,
-      'topic': topic,
-    });
-
-    Get.snackbar('موفقیت', 'تنظیمات MQTT ذخیره و ارسال شد',
-        backgroundColor: Colors.green, colorText: Colors.white);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -129,42 +157,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
+                    /// Save Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _updateMqttSettings,
+                        onPressed: _saveSettings,
                         icon: const Icon(Icons.save),
                         label: const Text('ذخیره تنظیمات MQTT'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
                       ),
                     ),
+
                     // در SettingsScreen، بعد از دکمه ذخیره تنظیمات
                     const SizedBox(height: 10),
 
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: () {
-                          // درخواست تنظیمات فعلی از foreground task
-                          FlutterForegroundTask.sendDataToTask({
-                            'action': 'get_current_settings',
-                          });
-
-                          // گوش دادن برای پاسخ
-                          // این نیاز به اضافه کردن listener در MainScreen دارد
-                          Get.snackbar(
-                            'درخواست تنظیمات',
-                            'درخواست تنظیمات فعلی ارسال شد',
-                            backgroundColor: Colors.blue,
-                            colorText: Colors.white,
-                          );
-                        },
+                        onPressed: _requestCurrentSettings,
                         icon: const Icon(Icons.download),
-                        label: const Text('دریافت تنظیمات فعلی'),
+                        label: const Text('دریافت تنظیمات فعلی از سرویس'),
                       ),
                     ),
                   ],
@@ -302,7 +313,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             confirmTextColor: Colors.white,
                             onConfirm: () {
                               locationService.clearHistory();
-                              mqttService.resetStats();
+                              mqttService.requestResetStats();
                               Get.back();
                               Get.snackbar(
                                 'موفقیت',

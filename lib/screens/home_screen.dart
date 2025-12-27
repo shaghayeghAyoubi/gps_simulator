@@ -122,16 +122,25 @@ class HomeScreen extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: mqttService.isConnected
+                              color: mqttService.isConnected.value
                                   ? Colors.green
                                   : Colors.red,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
-                              mqttService.isConnected ? 'متصل' : 'قطع',
+                              mqttService.isConnected.value ? 'متصل' : 'قطع',
                               style: const TextStyle(color: Colors.white),
                             ),
                           )),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                mqttService.requestReconnect();
+                              },
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('اتصال مجدد MQTT'),
+                            ),
+                          )
                         ],
                       ),
                       const SizedBox(height: 16),

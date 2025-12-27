@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:gps_simulator/screens/settings_screen.dart';
 
 import '../services/location_service.dart';
+import '../services/mqtt_service.dart';
 import 'history_screen.dart';
 import 'home_screen.dart';
 
@@ -168,6 +169,9 @@ class _MainScreenState extends State<MainScreen> {
       // Update UI through GetX if needed
       final locationService = Get.find<LocationService>();
       locationService.updateFromForegroundData(data);
+
+      final mqttService = Get.find<MqttService>();
+      mqttService.updateFromForeground(data);
     }
   }
 

@@ -9,6 +9,8 @@ import 'package:gps_simulator/screens/app.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
+import '../local/app_storage.dart';
+
 // صفحات
 
 
@@ -22,9 +24,28 @@ class LocationTaskHandler extends TaskHandler {
   // ❌ تغییر از final به var
   String _mqttBroker = '172.15.0.50';
   int _mqttPort = 1884;
-  String _mqttTopic = 'car/#';
+  String _mqttTopic = 'car/gps';
 
   // Called when data is sent using `FlutterForegroundTask.sendDataToTask`.
+
+  Future<void> _loadMqttSettingsFromStorage() async {
+    try {
+      final ip = await AppStorage.getIp();
+      final portString = await AppStorage.getPort();
+      final topic = await AppStorage.getTopic();
+
+      _mqttBroker = ip;
+      _mqttPort = int.tryParse(portString) ?? _mqttPort;
+      _mqttTopic = topic;
+
+      print('📦 MQTT settings loaded from storage');
+      print('Broker: $_mqttBroker');
+      print('Port  : $_mqttPort');
+      print('Topic : $_mqttTopic');
+    } catch (e) {
+      print('❌ Failed to load MQTT settings from storage: $e');
+    }
+  }
 
   Future<void> _initMqtt() async {
     try {
@@ -217,6 +238,7 @@ class LocationTaskHandler extends TaskHandler {
       'timestamp': position.timestamp?.toIso8601String(),
       'accuracy': position.accuracy,
       'speed': position.speed,
+      'mqtt_connected': _isMqttConnected,
       'action': 'location_update',
     };
     FlutterForegroundTask.sendDataToMain(data);
@@ -249,6 +271,7 @@ class LocationTaskHandler extends TaskHandler {
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     print('Foreground Task Started at $timestamp');
 
+    await _loadMqttSettingsFromStorage();
     // Initialize MQTT
     await _initMqtt();
 
@@ -381,6 +404,26 @@ class LocationTaskHandler extends TaskHandler {
             'topic': _mqttTopic,
           });
           break;
+        case 'reconnect_mqtt':
+          print('🔁 Reconnecting MQTT by UI request');
+
+          if (_mqttClient != null) {
+            try {
+              _mqttClient!.disconnect();
+            } catch (_) {}
+            _mqttClient = null;
+          }
+
+          _isMqttConnected = false;
+          _sendMqttStatusToUI(false, error: 'در حال اتصال مجدد...');
+
+          _initMqtt();
+          break;
+
+        case 'reset_stats':
+          _resetStats();
+          break;
+
       }
     }
   }
@@ -396,6 +439,17 @@ class LocationTaskHandler extends TaskHandler {
         'source': 'notification_button',
       });
     }
+  }
+
+  void _resetStats() {
+    print('🔄 Resetting foreground stats');
+
+    _locationCount = 0;
+
+    FlutterForegroundTask.sendDataToMain({
+      'action': 'stats_reset',
+      'location_count': _locationCount,
+    });
   }
 
   // Called when the notification itself is pressed.
