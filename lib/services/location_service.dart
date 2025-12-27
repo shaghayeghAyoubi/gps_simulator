@@ -264,18 +264,18 @@ class LocationService extends GetxController {
       }
 
       // Start foreground service
-      final result = await FlutterForegroundTask.startService(
-        serviceId: 1001,
-        notificationTitle: 'ردیاب موقعیت فعال',
-        notificationText: 'در حال ردیابی موقعیت شما...',
-        notificationButtons: [
-          const NotificationButton(
-            id: 'stop_button',
-            text: 'توقف',
-          ),
-        ],
-        callback: startCallback,
-      );
+      // final result = await FlutterForegroundTask.startService(
+      //   serviceId: 1001,
+      //   notificationTitle: 'ردیاب موقعیت فعال',
+      //   notificationText: 'در حال ردیابی موقعیت شما...',
+      //   notificationButtons: [
+      //     const NotificationButton(
+      //       id: 'stop_button',
+      //       text: 'توقف',
+      //     ),
+      //   ],
+      //   callback: startCallback,
+      // );
 
       _isTracking.value = true;
       update();

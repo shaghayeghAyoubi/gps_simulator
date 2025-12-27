@@ -26,6 +26,10 @@ class LocationTaskHandler extends TaskHandler {
   int _mqttPort = 1884;
   String _mqttTopic = 'car/gps';
 
+  Timer? _reconnectTimer;
+  bool _isReconnecting = false;
+  int _reconnectAttempt = 0;
+
   // Called when data is sent using `FlutterForegroundTask.sendDataToTask`.
 
   Future<void> _loadMqttSettingsFromStorage() async {
@@ -46,66 +50,94 @@ class LocationTaskHandler extends TaskHandler {
       print('❌ Failed to load MQTT settings from storage: $e');
     }
   }
-
+  void onConnected() {
+    print("✅ اتصال برقرار شد");
+  }
   Future<void> _initMqtt() async {
+    final clientId = 'flutter_fg_${DateTime.now().microsecondsSinceEpoch}';
+
+    _mqttClient = MqttServerClient('172.15.0.55', clientId);
+    _mqttClient?.port = 1884;
     try {
-      final clientId = 'flutter_fg_${DateTime.now().millisecondsSinceEpoch}';
 
-      _mqttClient = MqttServerClient(_mqttBroker, clientId)
-        ..port = _mqttPort
-        ..logging(on: true) // ✅ VERY IMPORTANT
-        ..keepAlivePeriod = 30
-        ..connectTimeoutPeriod = 5000 // ⏱ timeout
-        ..autoReconnect = false
-        ..onDisconnected = _onMqttDisconnected
-        ..onConnected = () {
-          print('MQTT onConnected callback fired');
-        }
-        ..onSubscribed = (topic) {
-          print('Subscribed to $topic');
-        };
 
-      final connMess = MqttConnectMessage()
-          .withClientIdentifier(clientId)
-          .startClean() // ⚠️ مهم
-          .withWillQos(MqttQos.atLeastOnce);
 
-      _mqttClient!.connectionMessage = connMess;
+      // تنظیمات اتصال
+      _mqttClient?.keepAlivePeriod = 60;
+      _mqttClient?.onDisconnected = _onMqttDisconnected;
+      _mqttClient?.onConnected = onConnected;
+      await _mqttClient?.connect();
 
-      print('================ MQTT CONNECT ATTEMPT ================');
-      print('Broker: $_mqttBroker');
-      print('Port  : $_mqttPort');
-      print('Client: $clientId');
+      // تنظیم پیام اتصال
 
-      await _mqttClient!.connect();
 
-      final status = _mqttClient!.connectionStatus;
-      print('MQTT connection status: $status');
 
-      if (status?.state == MqttConnectionState.connected) {
+
+
+
+      if (_mqttClient!.connectionStatus!.state == MqttConnectionState.connected) {
         _isMqttConnected = true;
-        print('✅ MQTT CONNECTED');
-        _sendMqttStatusToUI(true);
+
+        print('✅ اتصال MQTT برقرار شد');
+
+        // مشترک شدن در تاپیک
+
       } else {
-        _isMqttConnected = false;
-        print('❌ MQTT FAILED: ${status?.state}');
-        _sendMqttStatusToUI(
-          false,
-          error: 'MQTT state: ${status?.state}',
-        );
+
       }
     } on NoConnectionException catch (e) {
-      print('❌ NoConnectionException: $e');
-      _sendMqttStatusToUI(false, error: e.toString());
-    } on SocketException catch (e) {
-      print('❌ SocketException: $e');
-      _sendMqttStatusToUI(false, error: 'Socket error: ${e.message}');
-    } on Exception catch (e) {
-      print('❌ General MQTT Exception: $e');
-      _sendMqttStatusToUI(false, error: e.toString());
+
+      print('❌ Broker did not respond: $e');
+    } catch (e) {
+
+      print('❌ خطا: $e');
     }
   }
 
+
+
+
+  void _scheduleReconnect() {
+    if (_isReconnecting) return;
+
+    _isReconnecting = true;
+    _reconnectAttempt++;
+
+    final delaySeconds = (_reconnectAttempt <= 5)
+        ? _reconnectAttempt * 2
+        : 10; // max delay
+
+    print('🔁 Scheduling MQTT reconnect in $delaySeconds seconds (attempt $_reconnectAttempt)');
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () async {
+      try {
+        if (_mqttClient != null) {
+          try {
+            _mqttClient!.disconnect();
+          } catch (_) {}
+          _mqttClient = null;
+        }
+
+        _isMqttConnected = false;
+        await _initMqtt();
+
+        if (_mqttClient?.connectionStatus?.state ==
+            MqttConnectionState.connected) {
+          print('✅ MQTT RECONNECTED');
+          _reconnectAttempt = 0;
+          _isReconnecting = false;
+        } else {
+          _isReconnecting = false;
+          _scheduleReconnect();
+        }
+      } catch (e) {
+        print('❌ Reconnect failed: $e');
+        _isReconnecting = false;
+        _scheduleReconnect();
+      }
+    });
+  }
 
   void _onMqttDisconnected() {
     final status = _mqttClient?.connectionStatus;
@@ -118,6 +150,8 @@ class LocationTaskHandler extends TaskHandler {
       false,
       error: 'Disconnected: ${status?.returnCode}',
     );
+
+    _scheduleReconnect(); // ⭐ مهم
   }
 
   // Start location tracking in foreground task
@@ -193,20 +227,32 @@ class LocationTaskHandler extends TaskHandler {
       try {
         final payload =
         '''
+
 {
-  "device_id": "${_mqttClient?.clientIdentifier}",
-  "latitude": ${position.latitude},
-  "longitude": ${position.longitude},
-  "accuracy": ${position.accuracy},
-  "altitude": ${position.altitude},
+  "mmei": "2828",
+  "vehicle_id": "CAR-005",
+  "timestamp": "2024-12-27T15:30:45.123456",
+  "position": {
+    "latitude":${position.latitude},
+    "longitude": ${position.longitude},
+    "location_name": "Vanak Square به Niavaran"
+  },
+  "status": "moving",
   "speed": ${position.speed},
-  "heading": ${position.heading},
-  "timestamp": "${position.timestamp?.toIso8601String()}",
-  "speed_accuracy": ${position.speedAccuracy},
-  "broker": "$_mqttBroker",
-  "topic": "$_mqttTopic",
-  "count": $_locationCount
+  "fuel_level": 78,
+  "engine_temp": 85,
+  "odometer": 125000,
+  "route_progress": "150/300",
+  "route_completed": false,
+  "eta_minutes": 45.5,
+  "alerts": ["none"],
+  "route_id": "Vanak Square_Niavaran_CAR-005",
+  "start_location": "Vanak Square",
+  "end_location": "Niavaran",
+  "direction": "normal",
+  "action": "1"
 }
+
 ''';
 
         final builder = MqttClientPayloadBuilder();
@@ -335,6 +381,11 @@ class LocationTaskHandler extends TaskHandler {
     // 3. به‌روزرسانی وضعیت
     _isMqttConnected = false;
 
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _isReconnecting = false;
+
     // 4. اطلاع به UI
     FlutterForegroundTask.sendDataToMain({
       'action': 'service_stopped',
@@ -417,7 +468,7 @@ class LocationTaskHandler extends TaskHandler {
           _isMqttConnected = false;
           _sendMqttStatusToUI(false, error: 'در حال اتصال مجدد...');
 
-          _initMqtt();
+          _safeReconnect();
           break;
 
         case 'reset_stats':
@@ -427,7 +478,33 @@ class LocationTaskHandler extends TaskHandler {
       }
     }
   }
+  Future<void> _safeReconnect() async {
+    if (_isReconnecting) {
+      print('⏳ Reconnect already in progress, skip');
+      return;
+    }
 
+    _isReconnecting = true;
+
+    try {
+      if (_mqttClient != null) {
+        try {
+          _mqttClient!.disconnect();
+        } catch (_) {}
+        _mqttClient = null;
+      }
+
+      _isMqttConnected = false;
+      _sendMqttStatusToUI(false, error: 'در حال اتصال مجدد...');
+
+      // ⏱ صبر کن شبکه stabilize شود
+      await Future.delayed(const Duration(seconds: 3));
+
+      await _initMqtt();
+    } finally {
+      _isReconnecting = false;
+    }
+  }
   // Called when the notification button is pressed.
   @override
   void onNotificationButtonPressed(String id) {
