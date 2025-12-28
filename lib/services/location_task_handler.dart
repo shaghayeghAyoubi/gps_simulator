@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -56,8 +57,8 @@ class LocationTaskHandler extends TaskHandler {
   Future<void> _initMqtt() async {
     final clientId = 'flutter_fg_${DateTime.now().microsecondsSinceEpoch}';
 
-    _mqttClient = MqttServerClient('172.15.0.55', clientId);
-    _mqttClient?.port = 1884;
+    _mqttClient = MqttServerClient(_mqttBroker, clientId);
+    _mqttClient?.port = _mqttPort;
     try {
 
 
@@ -97,62 +98,17 @@ class LocationTaskHandler extends TaskHandler {
 
 
 
-  void _scheduleReconnect() {
-    if (_isReconnecting) return;
 
-    _isReconnecting = true;
-    _reconnectAttempt++;
-
-    final delaySeconds = (_reconnectAttempt <= 5)
-        ? _reconnectAttempt * 2
-        : 10; // max delay
-
-    print('🔁 Scheduling MQTT reconnect in $delaySeconds seconds (attempt $_reconnectAttempt)');
-
-    _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () async {
-      try {
-        if (_mqttClient != null) {
-          try {
-            _mqttClient!.disconnect();
-          } catch (_) {}
-          _mqttClient = null;
-        }
-
-        _isMqttConnected = false;
-        await _initMqtt();
-
-        if (_mqttClient?.connectionStatus?.state ==
-            MqttConnectionState.connected) {
-          print('✅ MQTT RECONNECTED');
-          _reconnectAttempt = 0;
-          _isReconnecting = false;
-        } else {
-          _isReconnecting = false;
-          _scheduleReconnect();
-        }
-      } catch (e) {
-        print('❌ Reconnect failed: $e');
-        _isReconnecting = false;
-        _scheduleReconnect();
-      }
-    });
-  }
 
   void _onMqttDisconnected() {
-    final status = _mqttClient?.connectionStatus;
-    print('❌ MQTT DISCONNECTED');
-    print('State: ${status?.state}');
-    print('Return code: ${status?.returnCode}');
+    if (_isReconnecting) return;
+
     _isMqttConnected = false;
+    _sendMqttStatusToUI(false, error: 'Disconnected');
 
-    _sendMqttStatusToUI(
-      false,
-      error: 'Disconnected: ${status?.returnCode}',
-    );
-
-    _scheduleReconnect(); // ⭐ مهم
+    _safeReconnect();
   }
+
 
   // Start location tracking in foreground task
   Future<void> _startLocationTracking() async {
@@ -216,64 +172,34 @@ class LocationTaskHandler extends TaskHandler {
   }
 
   Future<void> _sendToMqtt(Position position) async {
-    print('MQTT state before publish: '
-        '${_mqttClient?.connectionStatus?.state}');
     if (_mqttClient?.connectionStatus?.state != MqttConnectionState.connected) {
-      print('❌ MQTT NOT CONNECTED - SKIP SEND');
       return;
     }
-    if (_isMqttConnected &&
-        _mqttClient?.connectionStatus?.state == MqttConnectionState.connected) {
-      try {
-        final payload =
-        '''
 
-{
-  "mmei": "2828",
-  "vehicle_id": "CAR-005",
-  "timestamp": "2024-12-27T15:30:45.123456",
-  "position": {
-    "latitude":${position.latitude},
-    "longitude": ${position.longitude},
-    "location_name": "Vanak Square به Niavaran"
-  },
-  "status": "moving",
-  "speed": ${position.speed},
-  "fuel_level": 78,
-  "engine_temp": 85,
-  "odometer": 125000,
-  "route_progress": "150/300",
-  "route_completed": false,
-  "eta_minutes": 45.5,
-  "alerts": ["none"],
-  "route_id": "Vanak Square_Niavaran_CAR-005",
-  "start_location": "Vanak Square",
-  "end_location": "Niavaran",
-  "direction": "normal",
-  "action": "1"
-}
+    final payload = {
+      "imei": "2828",
+      "vehicle_id": "CAR-005",
+      "timestamp": DateTime.now().toIso8601String(),
+      "position": {
+        "latitude": position.latitude,
+        "longitude": position.longitude,
+        "location_name": "Vanak Square به Niavaran"
+      },
+      "status": position.speed > 1 ? "moving" : "stopped",
+      "speed": (position.speed * 3.6).round(),
+      "action": "1"
+    };
 
-''';
+    final builder = MqttClientPayloadBuilder();
+    builder.addString(jsonEncode(payload));
 
-        final builder = MqttClientPayloadBuilder();
-        builder.addString(payload);
+    _mqttClient!.publishMessage(
+      _mqttTopic,
+      MqttQos.atLeastOnce,
+      builder.payload!,
+    );
 
-        _mqttClient!.publishMessage(
-          _mqttTopic, // استفاده از متغیر
-          MqttQos.atLeastOnce,
-          builder.payload!,
-        );
-
-        print(
-          'Sent location #$_locationCount to MQTT (Broker: $_mqttBroker, Topic: $_mqttTopic)',
-        );
-      } catch (e) {
-        print('Error sending to MQTT: $e');
-        _isMqttConnected = false;
-      }
-    } else {
-      print('MQTT not connected, cannot send location');
-    }
+    print('📤 Location sent');
   }
 
   void _sendToMainIsolate(Position position) {
