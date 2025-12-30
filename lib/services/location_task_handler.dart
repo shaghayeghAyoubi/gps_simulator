@@ -80,16 +80,20 @@ class LocationTaskHandler extends TaskHandler {
         _isMqttConnected = true;
 
         print('✅ اتصال MQTT برقرار شد');
+        _sendMqttStatusToUI(true);
 
         // مشترک شدن در تاپیک
 
       } else {
+        _sendMqttStatusToUI(false, error: 'MQTT not connected');
 
       }
     } on NoConnectionException catch (e) {
 
       print('❌ Broker did not respond: $e');
     } catch (e) {
+      _isMqttConnected = false;
+      _sendMqttStatusToUI(false, error: e.toString());
 
       print('❌ خطا: $e');
     }
@@ -135,6 +139,7 @@ class LocationTaskHandler extends TaskHandler {
         const locationSettings = LocationSettings(
           accuracy: LocationAccuracy.bestForNavigation,
           distanceFilter: 10,
+          timeLimit: Duration(seconds: 5),
         );
 
         _positionStream =
@@ -198,6 +203,11 @@ class LocationTaskHandler extends TaskHandler {
       MqttQos.atLeastOnce,
       builder.payload!,
     );
+    FlutterForegroundTask.sendDataToMain({
+      'action': 'mqtt_message_sent',
+      'count': 1,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
 
     print('📤 Location sent');
   }

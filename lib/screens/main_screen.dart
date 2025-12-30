@@ -164,6 +164,13 @@ class _MainScreenState extends State<MainScreen> {
             'Heartbeat: ${data['timestamp']}, Count: ${data['count']}, MQTT: ${data['mqtt_connected']}',
           );
           break;
+
+        case 'mqtt_message_sent':
+          final mqttService = Get.find<MqttService>();
+          mqttService.onMessageSent(
+            DateTime.tryParse(data['timestamp'] ?? ''),
+          );
+          break;
       }
 
       // Update UI through GetX if needed

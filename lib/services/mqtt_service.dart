@@ -28,9 +28,21 @@ class MqttService extends GetxController {
   }
 
   void updateFromForeground(Map<String, dynamic> data) {
-    if (data['action'] == 'mqtt_status') {
-      isConnected.value = data['connected'] ?? false;
-      lastError.value = data['error'] ?? '';
+    switch (data['action']) {
+      case 'mqtt_status':
+        isConnected.value = data['connected'] ?? false;
+        lastError.value = data['error'] ?? '';
+        break;
+
+      case 'heartbeat':
+        if (data.containsKey('mqtt_connected')) {
+          isConnected.value = data['mqtt_connected'] ?? false;
+          _connectionStatus.value =
+          isConnected.value ? 'متصل (Heartbeat)' : 'قطع (Heartbeat)';
+        }
+        break;
+
+
     }
   }
   void requestResetStats() {
@@ -48,5 +60,9 @@ class MqttService extends GetxController {
     });
 
     _connectionStatus.value = 'در حال اتصال مجدد...';
+  }
+  void onMessageSent(DateTime? time) {
+    _messagesSent.value++;
+    _lastMessageTime.value = time ?? DateTime.now();
   }
 }
