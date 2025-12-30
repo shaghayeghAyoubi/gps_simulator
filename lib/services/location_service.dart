@@ -90,6 +90,10 @@ class LocationService extends GetxController {
       case 'service_stopped':
         _isTracking.value = false;
         break;
+
+      case 'heartbeat':
+        _isTracking.value = data['service_running'] ?? _isTracking.value;
+        break;
     }
 
     update();

@@ -67,32 +67,33 @@ class HomeScreen extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: locationService.isTracking
-                                ? null
-                                : () => locationService.startForegroundService(),
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('شروع ردیابی'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
+                      Obx(() => Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: locationService.isTracking
+                                  ? null
+                                  : () => locationService.startForegroundService(),
+                              icon: const Icon(Icons.play_arrow),
+                              label: const Text('شروع ردیابی'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                              ),
                             ),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: locationService.isTracking
-                                ? () => locationService.stopForegroundService()
-                                : null,
-                            icon: const Icon(Icons.stop),
-                            label: const Text('توقف ردیابی'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
+                            ElevatedButton.icon(
+                              onPressed: locationService.isTracking
+                                  ? () => locationService.stopForegroundService()
+                                  : null,
+                              icon: const Icon(Icons.stop),
+                              label: const Text('توقف ردیابی'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),

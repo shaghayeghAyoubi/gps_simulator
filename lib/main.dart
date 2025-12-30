@@ -7,6 +7,8 @@ import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
 void main() {
+
+  WidgetsFlutterBinding.ensureInitialized();
   // Initialize port for communication between TaskHandler and UI.
   FlutterForegroundTask.initCommunicationPort();
   runApp(const MyApp());
